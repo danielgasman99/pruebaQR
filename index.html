@@ -14,18 +14,38 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl text-center">
-        <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Lector de QR</h1>
-        <p class="text-gray-600 mb-6">Escanea el código QR de un trabajador para registrar su asistencia.</p>
-
-        <!-- Contenedor del escáner y el mensaje de estado -->
-        <div class="space-y-4">
-            <div id="reader" class="scanner-container"></div>
-            <div id="result" class="min-h-12 flex items-center justify-center">
-                <p id="statusMessage" class="text-lg font-semibold text-gray-500">Esperando escaneo...</p>
+        <!-- Pantalla de bienvenida con los botones de entrada y salida -->
+        <div id="welcome-screen">
+            <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Selecciona una Opción</h1>
+            <p class="text-gray-600 mb-6">Elige si vas a registrar una entrada o una salida.</p>
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4">
+                <button id="entryButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg">
+                    Entrada
+                </button>
+                <button id="exitButton" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg">
+                    Salida
+                </button>
             </div>
-            <button id="toggleButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg">
-                Iniciar Escáner
-            </button>
+        </div>
+
+        <!-- Pantalla del escáner (inicialmente oculta) -->
+        <div id="scanner-screen" class="hidden">
+            <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Lector de QR</h1>
+            <p class="text-gray-600 mb-6">Escanea el código QR de un trabajador para registrar su asistencia.</p>
+
+            <!-- Contenedor del escáner y el mensaje de estado -->
+            <div class="space-y-4">
+                <div id="reader" class="scanner-container"></div>
+                <div id="result" class="min-h-12 flex items-center justify-center">
+                    <p id="statusMessage" class="text-lg font-semibold text-gray-500">Esperando escaneo...</p>
+                </div>
+                <button id="toggleButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg">
+                    Iniciar Escáner
+                </button>
+                <button id="backButton" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg mt-2">
+                    Volver
+                </button>
+            </div>
         </div>
     </div>
 
@@ -36,12 +56,36 @@
         };
         
         const html5QrCode = new Html5Qrcode("reader");
+        const welcomeScreen = document.getElementById("welcome-screen");
+        const scannerScreen = document.getElementById("scanner-screen");
         const statusMessage = document.getElementById("statusMessage");
         const toggleButton = document.getElementById("toggleButton");
+        const backButton = document.getElementById("backButton");
+        const entryButton = document.getElementById("entryButton");
+        const exitButton = document.getElementById("exitButton");
         let isScanning = false;
+        let entryType = ''; // 'Entrada' o 'Salida'
 
         // **AQUÍ ESTÁ LA NUEVA URL: Pega la URL de tu nuevo despliegue aquí.**
         const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbw-RjbKssmrXTpXnvgQY2Xg96-4OiwSDGZ8MDYhGMw_p_vwrjvWUft09NwD6OLqZK6_/exec';
+
+        // Funciones para mostrar y ocultar las pantallas
+        const showWelcomeScreen = () => {
+            scannerScreen.classList.add('hidden');
+            welcomeScreen.classList.remove('hidden');
+            updateStatus("Esperando escaneo...");
+            if (isScanning) {
+                html5QrCode.stop().catch(console.error);
+                isScanning = false;
+            }
+        };
+
+        const showScannerScreen = (type) => {
+            entryType = type;
+            welcomeScreen.classList.add('hidden');
+            scannerScreen.classList.remove('hidden');
+            startScanner();
+        };
 
         // Función para actualizar el mensaje de estado
         function updateStatus(message, type = 'info') {
@@ -74,7 +118,8 @@
                 updateStatus("Procesando...", "info");
                 const data = {
                     worker_id: workerId,
-                    nombre: workerName
+                    nombre: workerName,
+                    tipo_registro: entryType // Aquí enviamos el tipo de registro
                 };
 
                 // Uso de la API de Fetch para enviar los datos de forma más compatible
@@ -85,19 +130,27 @@
                     body: JSON.stringify(data)
                 })
                 .then(response => {
-                    // Si el servidor responde, la petición fue exitosa.
                     updateStatus(`Registro exitoso para ${workerName}!`, "success");
-                    setTimeout(startScanner, 3000);
+                    setTimeout(() => {
+                        updateStatus("Esperando escaneo...");
+                        startScanner();
+                    }, 3000);
                 })
                 .catch(error => {
                     console.error("Error al enviar los datos:", error);
                     updateStatus("Error al registrar. Intenta de nuevo.", "error");
-                    setTimeout(startScanner, 3000);
+                    setTimeout(() => {
+                        updateStatus("Esperando escaneo...");
+                        startScanner();
+                    }, 3000);
                 });
 
             } else {
                 updateStatus("QR no reconocido. Intenta con otro.", "error");
-                setTimeout(startScanner, 3000);
+                setTimeout(() => {
+                    updateStatus("Esperando escaneo...");
+                    startScanner();
+                }, 3000);
             }
         };
 
@@ -135,9 +188,10 @@
         toggleButton.addEventListener('click', () => {
             if (isScanning) { stopScanner(); } else { startScanner(); }
         });
+        entryButton.addEventListener('click', () => showScannerScreen('Entrada'));
+        exitButton.addEventListener('click', () => showScannerScreen('Salida'));
+        backButton.addEventListener('click', showWelcomeScreen);
+        
     </script>
 </body>
 </html>
-
-
-
