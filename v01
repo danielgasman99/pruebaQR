@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lector de QR para Registro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .scanner-container { width: 100%; max-width: 500px; margin: auto; }
+        #reader { border: 2px solid #3b82f6; border-radius: 1rem; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08); }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl text-center">
+        <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Lector de QR</h1>
+        <p class="text-gray-600 mb-6">Escanea el código QR de un trabajador para registrar su asistencia.</p>
+
+        <!-- Contenedor del escáner y el mensaje de estado -->
+        <div class="space-y-4">
+            <div id="reader" class="scanner-container"></div>
+            <div id="result" class="min-h-12 flex items-center justify-center">
+                <p id="statusMessage" class="text-lg font-semibold text-gray-500">Esperando escaneo...</p>
+            </div>
+            <button id="toggleButton" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-xl transition-all duration-300 transform active:scale-95 shadow-lg">
+                Iniciar Escáner
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Mapeo de IDs de trabajador a nombres.
+        const workers = {
+            "W001": "Juan Pérez", "W002": "María Soto", "W003": "Carlos Rivas", "W004": "Ana López", "W005": "Pedro González"
+        };
+        
+        const html5QrCode = new Html5Qrcode("reader");
+        const statusMessage = document.getElementById("statusMessage");
+        const toggleButton = document.getElementById("toggleButton");
+        let isScanning = false;
+
+        // **AQUÍ ESTÁ LA NUEVA URL: Pega la URL de tu nuevo despliegue aquí.**
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyzPSF1j7pzNgqkysjOQQ7__BU6p6e20d7MCCC8XrprL8mUPEtil71a0DEkf8EJ-w/exec';
+
+        // Función para actualizar el mensaje de estado
+        function updateStatus(message, type = 'info') {
+            statusMessage.textContent = message;
+            statusMessage.className = 'text-lg font-semibold';
+            if (type === 'success') {
+                statusMessage.classList.add('text-green-600');
+            } else if (type === 'error') {
+                statusMessage.classList.add('text-red-600');
+            } else {
+                statusMessage.classList.add('text-gray-500');
+            }
+        }
+
+        // Función que se ejecuta al escanear un QR exitosamente
+        const onScanSuccess = (decodedText) => {
+            console.log(`QR decodificado: ${decodedText}`);
+            
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                toggleButton.textContent = "Iniciar Escáner";
+            }).catch(err => {
+                console.error("Error al detener el escáner: ", err);
+            });
+
+            const workerId = decodedText;
+            const workerName = workers[workerId];
+
+            if (workerName) {
+                updateStatus("Procesando...", "info");
+                const data = {
+                    worker_id: workerId,
+                    nombre: workerName
+                };
+
+                // Uso de la API de Fetch para enviar los datos de forma más compatible
+                fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                })
+                .then(response => {
+                    // Si el servidor responde, la petición fue exitosa.
+                    updateStatus(`Registro exitoso para ${workerName}!`, "success");
+                    setTimeout(startScanner, 3000);
+                })
+                .catch(error => {
+                    console.error("Error al enviar los datos:", error);
+                    updateStatus("Error al registrar. Intenta de nuevo.", "error");
+                    setTimeout(startScanner, 3000);
+                });
+
+            } else {
+                updateStatus("QR no reconocido. Intenta con otro.", "error");
+                setTimeout(startScanner, 3000);
+            }
+        };
+
+        const onScanFailure = (error) => { /* Ignorar errores */ };
+
+        const startScanner = () => {
+            if (isScanning) return;
+            isScanning = true;
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                onScanFailure
+            ).then(() => {
+                updateStatus("Escáner listo. ¡Apunta a un QR!");
+                toggleButton.textContent = "Detener Escáner";
+            }).catch(err => {
+                console.error("Error al iniciar la cámara:", err);
+                updateStatus("Error: No se pudo acceder a la cámara.", "error");
+                isScanning = false;
+            });
+        };
+
+        const stopScanner = () => {
+            if (!isScanning) return;
+            html5QrCode.stop().then(() => {
+                isScanning = false;
+                toggleButton.textContent = "Iniciar Escáner";
+                updateStatus("Escáner detenido.");
+            }).catch(err => {
+                console.error("Error al detener el escáner:", err);
+            });
+        };
+        
+        toggleButton.addEventListener('click', () => {
+            if (isScanning) { stopScanner(); } else { startScanner(); }
+        });
+    </script>
+</body>
+</html>
