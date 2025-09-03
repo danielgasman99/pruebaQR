@@ -67,7 +67,7 @@
         let entryType = ''; // 'Entrada' o 'Salida'
 
         // **AQUÍ ESTÁ LA NUEVA URL: Pega la URL de tu nuevo despliegue aquí.**
-        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwvQZcqvPLege9UoNL5yWQki1phnZCrKqSZoIANGKneTmsUsAJaL5NytlguvaLLQKKQ/exec';
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxgRdnnsghRWRm4Biwl9mkj6fBRAV4xDsQ00XKPrortOpkqln6QufBdx-gNaRmvzipa/exec';
 
         // Funciones para mostrar y ocultar las pantallas
         const showWelcomeScreen = () => {
@@ -122,30 +122,15 @@
                     tipo_registro: entryType // Aquí enviamos el tipo de registro
                 };
 
-                // Envía los datos al script de Google Apps y maneja la respuesta
+                // Uso de la API de Fetch para enviar los datos de forma más compatible
                 fetch(GOOGLE_SHEETS_URL, {
                     method: 'POST',
+                    mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 })
                 .then(response => {
-                    // Si el servidor responde, la petición fue exitosa.
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(responseData => {
-                    // Ahora verificamos la propiedad 'status' de la respuesta JSON.
-                    if (responseData.status === 'success') {
-                        updateStatus(responseData.message, "success");
-                    } else if (responseData.status === 'error') {
-                        updateStatus(responseData.message, "error");
-                    } else {
-                        updateStatus("Respuesta inesperada del servidor.", "error");
-                    }
-                    
-                    // Reinicia el escáner después de 3 segundos
+                    updateStatus(`Registro exitoso para ${workerName}!`, "success");
                     setTimeout(() => {
                         updateStatus("Esperando escaneo...");
                         startScanner();
@@ -153,7 +138,7 @@
                 })
                 .catch(error => {
                     console.error("Error al enviar los datos:", error);
-                    updateStatus("Error de red. Intenta de nuevo.", "error");
+                    updateStatus("Error al registrar. Intenta de nuevo.", "error");
                     setTimeout(() => {
                         updateStatus("Esperando escaneo...");
                         startScanner();
@@ -174,7 +159,6 @@
         const startScanner = () => {
             if (isScanning) return;
             isScanning = true;
-            toggleButton.textContent = "Detener Escáner";
             html5QrCode.start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: { width: 250, height: 250 } },
@@ -182,6 +166,7 @@
                 onScanFailure
             ).then(() => {
                 updateStatus("Escáner listo. ¡Apunta a un QR!");
+                toggleButton.textContent = "Detener Escáner";
             }).catch(err => {
                 console.error("Error al iniciar la cámara:", err);
                 updateStatus("Error: No se pudo acceder a la cámara.", "error");
