@@ -125,7 +125,6 @@
                 // Uso de la API de Fetch para enviar los datos de forma más compatible
                 fetch(GOOGLE_SHEETS_URL, {
                     method: 'POST',
-                    mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 })
@@ -200,4 +199,5 @@
     </script>
 </body>
 </html>
+
 
