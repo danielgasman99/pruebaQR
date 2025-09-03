@@ -129,8 +129,13 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 })
-                .then(response => {
-                    updateStatus(`Registro exitoso para ${workerName}!`, "success");
+                .then(response => response.text())  // 👈 Leer la respuesta como texto
+                .then(message => {
+                    if (message.includes("Error")) {
+                        updateStatus(message, "error");
+                    } else {
+                        updateStatus(message, "success");
+                    }
                     setTimeout(() => {
                         updateStatus("Esperando escaneo...");
                         startScanner();
@@ -195,3 +200,4 @@
     </script>
 </body>
 </html>
+
