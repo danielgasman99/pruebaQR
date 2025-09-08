@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    
+
     <style>
         body { font-family: 'Inter', sans-serif; }
         .scanner-container { width: 100%; max-width: 500px; margin: auto; }
@@ -51,7 +51,6 @@
     </div>
 
     <script>
-        // Mapeo de IDs de trabajador a nombres.
         const workers = {
             "W001": "Juan Pérez", "W002": "María Soto", "W003": "Carlos Rivas", "W004": "Ana López", "W005": "Pedro González"
         };
@@ -65,64 +64,11 @@
         const entryButton = document.getElementById("entryButton");
         const exitButton = document.getElementById("exitButton");
         let isScanning = false;
-        let entryType = ''; // 'Entrada' o 'Salida'
+        let entryType = '';
 
-        // --- Funciones para manejo offline y sincronización ---
-        const PENDING_RECORDS_KEY = 'pendingRecords';
+        // ** Importante: Reemplaza esta URL con la tuya **
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyRaogvo_izFaYkRUd4-j8K3oJcGlCYkByNxUx17tkMuxn2lxSvRElzZngJU6VpSDy2/exec';
 
-        function saveRecordLocally(record) {
-            let records = JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY)) || [];
-            records.push(record);
-            localStorage.setItem(PENDING_RECORDS_KEY, JSON.stringify(records));
-        }
-
-        function getPendingRecords() {
-            return JSON.parse(localStorage.getItem(PENDING_RECORDS_KEY)) || [];
-        }
-
-        function clearPendingRecords() {
-            localStorage.removeItem(PENDING_RECORDS_KEY);
-        }
-
-        function syncRecords() {
-            const recordsToSync = getPendingRecords();
-            if (recordsToSync.length > 0) {
-                updateStatus(`Sincronizando ${recordsToSync.length} registros...`, "info");
-                // Llama a la función correcta en el script
-                google.script.run
-                    .withSuccessHandler(responseData => {
-                        // Ahora verificamos la propiedad 'status' de la respuesta JSON.
-                        if (responseData.status === 'success') {
-                            updateStatus(responseData.message, "success");
-                            clearPendingRecords();
-                        } else if (responseData.status === 'error') {
-                            updateStatus(responseData.message, "error");
-                        } else {
-                            updateStatus("Respuesta inesperada del servidor.", "error");
-                        }
-                    })
-                    .withFailureHandler(error => {
-                        console.error("Error de sincronización:", error);
-                        updateStatus("Error de sincronización. Inténtalo de nuevo más tarde.", "error");
-                    })
-                    .syncRecords(recordsToSync);
-            } else {
-                console.log("No hay registros pendientes para sincronizar.");
-                updateStatus("No hay registros para sincronizar.");
-            }
-        }
-        
-        // Listener para detectar si el navegador está online
-        window.addEventListener('online', syncRecords);
-
-        // Intenta sincronizar al cargar la página
-        window.onload = function() {
-            syncRecords();
-        };
-
-        // --- Fin de las funciones ---
-
-        // Funciones para mostrar y ocultar las pantallas
         const showWelcomeScreen = () => {
             scannerScreen.classList.add('hidden');
             welcomeScreen.classList.remove('hidden');
@@ -140,7 +86,6 @@
             startScanner();
         };
 
-        // Función para actualizar el mensaje de estado
         function updateStatus(message, type = 'info') {
             statusMessage.textContent = message;
             statusMessage.className = 'text-lg font-semibold';
@@ -153,49 +98,36 @@
             }
         }
 
-        // Función que se ejecuta al escanear un QR exitosamente
         const onScanSuccess = (decodedText) => {
-            console.log(`QR decodificado: ${decodedText}`);
-            
             html5QrCode.stop().then(() => {
                 isScanning = false;
                 toggleButton.textContent = "Iniciar Escáner";
-            }).catch(err => {
-                console.error("Error al detener el escáner: ", err);
-            });
+            }).catch(console.error);
 
             const workerId = decodedText;
             const workerName = workers[workerId];
 
             if (workerName) {
-                updateStatus("Guardando registro...", "info");
-                const record = {
+                updateStatus(`Registro procesado para ${workerName}!`, "success");
+                
+                const data = {
                     worker_id: workerId,
                     nombre: workerName,
-                    tipo_registro: entryType,
-                    timestamp: new Date().toISOString()
+                    tipo_registro: entryType
                 };
 
-                saveRecordLocally(record);
-                updateStatus(`Registro de ${workerName} guardado localmente.`, "success");
+                // Realiza la solicitud sin esperar una respuesta, ya que 'no-cors' la bloquea
+                fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(data),
+                    headers: { 'Content-Type': 'application/json' }
+                });
                 
-                // Intentar sincronizar inmediatamente si hay conexión
-                if (navigator.onLine) {
-                    syncRecords();
-                }
-
-                // Reinicia el escáner después de 3 segundos
-                setTimeout(() => {
-                    updateStatus("Esperando escaneo...");
-                    startScanner();
-                }, 3000);
-
+                setTimeout(startScanner, 3000);
             } else {
                 updateStatus("QR no reconocido. Intenta con otro.", "error");
-                setTimeout(() => {
-                    updateStatus("Esperando escaneo...");
-                    startScanner();
-                }, 3000);
+                setTimeout(startScanner, 3000);
             }
         };
 
