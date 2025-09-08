@@ -67,7 +67,7 @@
         let isScanning = false;
         let entryType = ''; // 'Entrada' o 'Salida'
 
-        // --- Nuevas funciones para manejo offline y sincronización ---
+        // --- Funciones para manejo offline y sincronización ---
         const PENDING_RECORDS_KEY = 'pendingRecords';
 
         function saveRecordLocally(record) {
@@ -88,10 +88,18 @@
             const recordsToSync = getPendingRecords();
             if (recordsToSync.length > 0) {
                 updateStatus(`Sincronizando ${recordsToSync.length} registros...`, "info");
+                // Llama a la función correcta en el script
                 google.script.run
-                    .withSuccessHandler(() => {
-                        updateStatus("Todos los registros sincronizados correctamente.", "success");
-                        clearPendingRecords();
+                    .withSuccessHandler(responseData => {
+                        // Ahora verificamos la propiedad 'status' de la respuesta JSON.
+                        if (responseData.status === 'success') {
+                            updateStatus(responseData.message, "success");
+                            clearPendingRecords();
+                        } else if (responseData.status === 'error') {
+                            updateStatus(responseData.message, "error");
+                        } else {
+                            updateStatus("Respuesta inesperada del servidor.", "error");
+                        }
                     })
                     .withFailureHandler(error => {
                         console.error("Error de sincronización:", error);
@@ -100,6 +108,7 @@
                     .syncRecords(recordsToSync);
             } else {
                 console.log("No hay registros pendientes para sincronizar.");
+                updateStatus("No hay registros para sincronizar.");
             }
         }
         
@@ -111,7 +120,7 @@
             syncRecords();
         };
 
-        // --- Fin de las nuevas funciones ---
+        // --- Fin de las funciones ---
 
         // Funciones para mostrar y ocultar las pantallas
         const showWelcomeScreen = () => {
@@ -152,7 +161,7 @@
                 isScanning = false;
                 toggleButton.textContent = "Iniciar Escáner";
             }).catch(err => {
-                console.error("Error al detener el escáner:", err);
+                console.error("Error al detener el escáner: ", err);
             });
 
             const workerId = decodedText;
