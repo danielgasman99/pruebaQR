@@ -1,6 +1,6 @@
 const CACHE_NAME = 'qr-reader-cache-v2';
 const urlsToCache = [
-  './qr-scanner.html',
+  './index.html',
   './manifest.json',
   'https://cdn.tailwindcss.com',
   'https://unpkg.com/html5-qrcode'
