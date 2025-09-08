@@ -1,9 +1,0 @@
-{
-  "name": "Registro de Asistencia QR",
-  "short_name": "Registro QR",
-  "description": "Aplicación para registrar la asistencia de trabajadores mediante códigos QR.",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#3b82f6"
-}
