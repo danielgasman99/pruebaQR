@@ -15,7 +15,7 @@
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
 
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl text-center">
-        <!-- Pantalla de bienvenida con los botones de entrada y salida -->
+        <!-- Pantalla de bienvenida -->
         <div id="welcome-screen">
             <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Selecciona una Opción</h1>
             <p class="text-gray-600 mb-6">Elige si vas a registrar una entrada o una salida.</p>
@@ -29,12 +29,11 @@
             </div>
         </div>
 
-        <!-- Pantalla del escáner (inicialmente oculta) -->
+        <!-- Pantalla del escáner -->
         <div id="scanner-screen" class="hidden">
             <h1 class="text-3xl font-extrabold text-blue-600 mb-4">Lector de QR</h1>
             <p class="text-gray-600 mb-6">Escanea el código QR de un trabajador para registrar su asistencia.</p>
 
-            <!-- Contenedor del escáner y el mensaje de estado -->
             <div class="space-y-4">
                 <div id="reader" class="scanner-container"></div>
                 <div id="result" class="min-h-12 flex items-center justify-center">
@@ -54,7 +53,7 @@
         const workers = {
             "W001": "Juan Pérez", "W002": "María Soto", "W003": "Carlos Rivas", "W004": "Ana López", "W005": "Pedro González"
         };
-        
+
         const html5QrCode = new Html5Qrcode("reader");
         const welcomeScreen = document.getElementById("welcome-screen");
         const scannerScreen = document.getElementById("scanner-screen");
@@ -66,7 +65,7 @@
         let isScanning = false;
         let entryType = '';
 
-        // ** Importante: Reemplaza esta URL con la tuya **
+        // ⚡ Tu URL de Google Script
         const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwX9yJncXoZ25AGHSPfrhPslVAkwVVULhHHryzfnOH8vXX5ONDz5g-mKBs_n_lDkvnT/exec';
 
         const showWelcomeScreen = () => {
@@ -108,22 +107,36 @@
             const workerName = workers[workerId];
 
             if (workerName) {
-                updateStatus(`Registro procesado para ${workerName}!`, "success");
-                
                 const data = {
                     worker_id: workerId,
                     nombre: workerName,
-                    tipo_registro: entryType
+                    tipo_registro: entryType,
+                    timestamp: new Date().toISOString()
                 };
 
-                // Realiza la solicitud sin esperar una respuesta, ya que 'no-cors' la bloquea
-                fetch(GOOGLE_SHEETS_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    body: JSON.stringify(data),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
+                // 👉 Flujo doble: si existe SQLite (Capacitor) lo usamos, si no hacemos fetch normal
+                if (window.CapacitorSQLite) {
+                    saveToSQLite(data).then(() => {
+                        updateStatus(`Registro guardado localmente para ${workerName}`, "success");
+                        trySync();
+                    }).catch(err => {
+                        updateStatus("Error al guardar localmente", "error");
+                        console.error(err);
+                    });
+                } else {
+                    // Modo navegador normal (fetch directo como antes)
+                    fetch(GOOGLE_SHEETS_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    }).then(() => {
+                        updateStatus(`Registro enviado para ${workerName}`, "success");
+                    }).catch(err => {
+                        updateStatus("Error al enviar", "error");
+                        console.error(err);
+                    });
+                }
+
                 setTimeout(startScanner, 3000);
             } else {
                 updateStatus("QR no reconocido. Intenta con otro.", "error");
@@ -161,17 +174,61 @@
                 console.error("Error al detener el escáner:", err);
             });
         };
-        
+
         toggleButton.addEventListener('click', () => {
             if (isScanning) { stopScanner(); } else { startScanner(); }
         });
         entryButton.addEventListener('click', () => showScannerScreen('Entrada'));
         exitButton.addEventListener('click', () => showScannerScreen('Salida'));
         backButton.addEventListener('click', showWelcomeScreen);
-        
+
+        // 🗄️ Funciones para modo SQLite (solo funcionan en Capacitor)
+        async function saveToSQLite(record) {
+            const { CapacitorSQLite } = window;
+            const db = await CapacitorSQLite.createConnection({ database: "asistencia", version: 1 });
+            await db.open();
+            await db.execute(`
+                CREATE TABLE IF NOT EXISTS registros (
+                    id TEXT PRIMARY KEY,
+                    worker_id TEXT,
+                    nombre TEXT,
+                    tipo_registro TEXT,
+                    timestamp TEXT,
+                    synced INTEGER
+                )
+            `);
+            const id = Date.now().toString();
+            await db.run(
+                "INSERT INTO registros (id, worker_id, nombre, tipo_registro, timestamp, synced) VALUES (?,?,?,?,?,?)",
+                [id, record.worker_id, record.nombre, record.tipo_registro, record.timestamp, 0]
+            );
+            await db.close();
+        }
+
+        async function trySync() {
+            const { CapacitorSQLite } = window;
+            const db = await CapacitorSQLite.createConnection({ database: "asistencia", version: 1 });
+            await db.open();
+            const res = await db.query("SELECT * FROM registros WHERE synced = 0");
+            if (!res.values.length) {
+                await db.close();
+                return;
+            }
+            try {
+                const response = await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ entries: res.values })
+                });
+                const result = await response.json();
+                if (result.status === "ok") {
+                    await db.run("UPDATE registros SET synced = 1 WHERE synced = 0");
+                }
+            } catch (err) {
+                console.error("Error sincronizando:", err);
+            }
+            await db.close();
+        }
     </script>
 </body>
 </html>
-
-
-
