@@ -50,6 +50,18 @@
     </div>
 
     <script>
+        <script>
+        document.addEventListener("DOMContentLoaded", () => {
+          if (window.Capacitor) {
+            console.log("✅ Capacitor disponible:", window.Capacitor);
+            alert("Capacitor está funcionando en la app");
+          } else {
+            console.log("⚠️ Capacitor NO detectado (estás en navegador)");
+            alert("Estás en navegador, no en la app");
+          }
+        });
+        </script>
+
         const workers = {
             "W001": "Juan Pérez", "W002": "María Soto", "W003": "Carlos Rivas", "W004": "Ana López", "W005": "Pedro González"
         };
@@ -233,5 +245,6 @@
     </script>
 </body>
 </html>
+
 
 
